@@ -1,0 +1,25 @@
+---
+- name: Create kickstart directory
+  file:
+    path: /data/bootimages/rhel7/{{ hostname }}
+    state: directory
+  delegate_to: localhost
+  become: yes
+  become_user: root
+
+- name: Unarchive RHEL 7 bootimages archive
+  unarchive:
+    src: /data/software/bootimages/rhel7_bootimages.tar
+    dest: /data/bootimages/rhel7/{{ hostname }}
+    remote_src: True
+  delegate_to: localhost
+  become: yes
+  become_user: root
+
+- name: Stage Kickstart dhcp config
+  template:
+    src: rhel7_kickstart_dhcp.j2
+    dest: /data/bootimages/rhel7/{{ hostname }}/isolinux/ks.cfg
+  delegate_to: localhost
+  become: yes
+  become_user: root

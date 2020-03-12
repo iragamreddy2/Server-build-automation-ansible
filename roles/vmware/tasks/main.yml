@@ -1,0 +1,141 @@
+---
+- name: CHG PROD INTERNAL UCS
+  set_fact:
+    ds: ""
+    iso_path: ""
+    vc_hostname: ""
+    datacenter: ""
+    esxi_hostname: ""
+  when:
+    - vmware_cluster == ""
+    - env == "Production"
+
+- name: MDC NONPROD LINUX
+  set_fact:
+    ds: ""
+    iso_path: ""
+    vc_hostname: ""
+    datacenter: ""
+    esxi_hostname: ""
+  when: (vmware_cluster == "" and env == "Proof of Concept") or
+        (vmware_cluster == "" and env == "Development") or
+        (vmware_cluster == "" and env == "Test") or
+        (vmware_cluster == "" and env == "Product Validation") or
+        (vmware_cluster == "" and env == "Performance Evaluation") or
+        (vmware_cluster == "" and env == "User Acceptance Testing") or
+        (vmware_cluster == "" and env == "Performance Validation Engineering")
+
+- name: MDC PROD LINUX
+  set_fact:
+    ds: ""
+    iso_path: ""
+    vc_hostname: ""
+    datacenter: ""
+    esxi_hostname: ""
+  when:
+    - vmware_cluster == ""
+    - env == "Production"
+
+# BHI does npt have a non-prod environment so we have to allow non-prod
+# deployments to NGS
+- name: NGS BHI
+  set_fact:
+    ds: ""
+    iso_path: ""
+    vc_hostname: ""
+    datacenter: ""
+    esxi_hostname: ""
+  when: vmware_cluster == ""
+#  when:
+#    - vmware_cluster == ""
+#    - env == "Production"
+
+- name: NGS PROD LINUX
+  set_fact:
+    ds: ""
+    iso_path: ""
+    vc_hostname: ""
+    datacenter: ""
+    esxi_hostname: ""
+  when:
+    - vmware_cluster == ""
+    - env == "Production"
+
+# No additional vdisk
+- name: Deploy a RHEL 7 VM to "{{ vmware_cluster }}"
+  delegate_to: localhost
+  vsphere_guest:
+    validate_certs: no
+    vcenter_hostname: '{{ vc_hostname }}'
+    username: '{{ vc_username }}'
+    password: '{{ vc_password }}'
+    guest: '{{ hostname }}'
+    state: powered_on
+    vm_extra_config:
+      vcpu.hotadd: yes
+      mem.hotadd:  yes
+      notes: Deployed via Ansible Tower
+      folder: Linux
+    vm_disk:
+      disk1:
+        size_gb: 64
+        type: thin
+        datastore: '{{ ds }}'
+    vm_nic:
+      nic1:
+        type: vmxnet3
+        network: '{{ network }}'
+        network_type: dvs
+    vm_hardware:
+      memory_mb: '{{ memory }}'
+      num_cpus: '{{ cpu }}'
+      osid: rhel7_64Guest
+      scsi: paravirtual
+      vm_cdrom:
+        type: iso
+        iso_path: '{{ iso_path }}/{{ hostname}}.iso'
+    esxi:
+      datacenter: '{{ datacenter }}'
+      hostname: '{{ esxi_hostname }}'
+  when: add_vdisk == "NA"
+
+# Additional vdisk
+- name: Deploy a RHEL 7 VM to "{{ vmware_cluster }}"
+  delegate_to: localhost
+  vsphere_guest:
+    validate_certs: no
+    vcenter_hostname: '{{ vc_hostname }}'
+    username: '{{ vc_username }}'
+    password: '{{ vc_password }}'
+    guest: '{{ hostname }}'
+    state: powered_on
+    vm_extra_config:
+      vcpu.hotadd: yes
+      mem.hotadd:  yes
+      notes: Deployed via Ansible Tower
+      folder: Linux
+    vm_disk:
+      disk1:
+        size_gb: 64
+        type: thin
+        datastore: '{{ ds }}'
+      disk2:
+        size_gb: '{{ add_vdisk }}'
+        type: thin
+        datastore: '{{ ds }}'
+    vm_nic:
+      nic1:
+        type: vmxnet3
+        network: '{{ network }}'
+        network_type: dvs
+    vm_hardware:
+      memory_mb: '{{ memory }}'
+      num_cpus: '{{ cpu }}'
+      osid: rhel7_64Guest
+      scsi: paravirtual
+      vm_cdrom:
+        type: iso
+        iso_path: '{{ iso_path }}/{{ hostname}}.iso'
+    esxi:
+      datacenter: '{{ datacenter }}'
+      hostname: '{{ esxi_hostname }}'

@@ -1,0 +1,12 @@
+---
+- hosts: localhost
+  gather_facts: false
+
+  roles:
+    - role: inventory
+    - role: kickstart_dhcp
+    - role: iso_dhcp
+    - role: vmware
+    - role: wait_for_vm
+    - role: disconnect_cdrom
+    - role: email_notification

@@ -1,0 +1,241 @@
+---
+# - name: Set Data Center to CHG
+#   set_fact:
+#     datacenter: ""
+#     datacenterid: "1"
+#   when: vmware_cluster == ""
+#
+# - name: Set Data Center to MDC
+#   set_fact:
+#     datacenter: ""
+#     datacenterid: "2"
+#   when: (vmware_cluster == "") or
+#         (vmware_cluster == "") or
+#         (vmware_cluster == "")
+#
+# - name: Set Data Center to NGS
+#   set_fact:
+#     datacenter: ""
+#     datacenterid: "3"
+#   when: (vmware_cluster == "") or
+#         (vmware_cluster == "") or
+#         (vmware_cluster == "") or
+#         (vmware_cluster == "")
+#
+# - name: Set Environment ID Proof of Concept
+#   set_fact:
+#     environmentid: "1"
+#   when: env == "Proof of Concept"
+#
+# - name: Set Environment ID Devevlopment
+#   set_fact:
+#     environmentid: "2"
+#   when: env == "Development"
+#
+# - name: Set Environment ID Test
+#   set_fact:
+#     environmentid: "3"
+#   when: env == "Test"
+#
+# - name: Set Environment ID Product Validation
+#   set_fact:
+#     environmentid: "4"
+#   when: env == ""
+#
+# - name: Set Environment ID Performance Evaluation
+#   set_fact:
+#     environmentid: "5"
+#   when: env == "Performance Evaluation"
+#
+# - name: Set Environment ID User Acceptance Testing
+#   set_fact:
+#     environmentid: "6"
+#   when: env == "User Acceptance Testing"
+#
+# - name: Set Environment ID Performance Validation Engineering
+#   set_fact:
+#     environmentid: "7"
+#   when: env == "Performance Validation Engineering"
+#
+# - name: Set Environment ID Production
+#   set_fact:
+#     environmentid: "8"
+#   when: env == "Production"
+#
+# - name: Query the SCS database for existing server
+#   command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT count(*) FROM server WHERE server = '{{ hostname }}'"
+#   register: stuff
+#   delegate_to: localhost
+#   no_log: True
+#
+# - name: Fail if server exists in the SCS database
+#   fail: msg="The server {{ hostname }} already exists in the SCS database!"
+#   when: stuff.stdout != "0"
+#
+# - name: Get Project ID
+#   command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_project FROM project WHERE project_code = '{{ project_code }}'"
+#   register: id_project
+#   delegate_to: localhost
+#   no_log: True
+#
+# - name: Get SOF ID
+#   command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_sof FROM sof WHERE sof_code = '{{ sof_code }}'"
+#   register: id_sof
+#   delegate_to: localhost
+#   no_log: True
+#
+# - name: Add server to SCS database
+#   command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --execute="INSERT INTO server (server,cpu,memory,email,environment_id_environment,status_id_status,type_id_type,model_id_model,osver_id_osver,location_id_location,project_id_project,sof_id_sof) VALUES ('{{ hostname }}','{{ cpu }}','{{ memory }}','{{ email }}','{{ environmentid }}','1','2','22','15','{{ datacenterid }}','{{ id_project.stdout }}','{{ id_sof.stdout }}')"
+#   when: stuff.stdout == "0"
+#   delegate_to: localhost
+#   no_log: True
+#
+# - name: Add server to /etc/rhel on ansibleserver
+#   lineinfile:
+#     dest: /etc/rhel
+#     state: present
+#     line: "{{ hostname }}"
+#   delegate_to: localhost
+#   become: yes
+#   become_user: root
+
+# ----------------------------------
+# Query if server exists
+
+- name: Query the SCS database for existing server
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT count(*) FROM server,status WHERE server = '{{ hostname }}' AND server.status_id_status = status.id_status AND status = 'Active'"
+  register: existing
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Fail job if server exists
+
+- name: Fail if server exists in the SCS database
+  fail: msg="The server {{ hostname }} already exists in the SCS database and is active!"
+  when: existing.stdout != "0"
+
+
+# ----------------------------------
+# Set OS Version ID
+
+- name: Get OS Version ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT osver.id_osver FROM os, osver WHERE os.os = '{{ os }}' AND osver.osver = '{{ osver }}'"
+  register: id_osver
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Set Data Center
+
+- name: Set Data Center to xyz
+  set_fact:
+    datacenter: ""
+  when: vmware_cluster == ""
+
+- name: Set Data Center to MDC
+  set_fact:
+    datacenter: ""
+  when: (vmware_cluster == "") or
+        (vmware_cluster == "")
+
+- name: Set Data Center to 
+  set_fact:
+    datacenter: ""
+  when: (vmware_cluster == "") or
+        (vmware_cluster == "")
+
+
+# ----------------------------------
+# Get Data Center ID
+
+- name: Get Data Center ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_location FROM location WHERE location = '{{ datacenter }}'"
+  register: id_datacenter
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get Environment ID
+
+- name: Get Environment ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_environment FROM environment WHERE environment = '{{ env }}'"
+  register: id_environment
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get Project ID
+
+- name: Get Project ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_project FROM project WHERE project_code = '{{ project_code }}'"
+  register: id_project
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get SOF ID
+
+- name: Get SOF ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_sof FROM sof WHERE sof_code = '{{ sof_code }}'"
+  register: id_sof
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get Status ID
+
+- name: Get Status ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_status FROM status WHERE status = 'Active'"
+  register: id_status
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get Type ID
+
+- name: Get Type ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_type FROM type WHERE type = 'VMware VM'"
+  register: id_type
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Get Model ID
+
+- name: Get Model ID
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --batch --skip-column-names --execute="SELECT id_model FROM model WHERE model = 'VMware VM'"
+  register: id_model
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Add server to SCS
+
+- name: Add server to SCS database
+  command: /usr/bin/mysql --user={{ scs_user }} --password='{{ scs_password }}' scs --execute="INSERT INTO server (server,cpu,memory,email,environment_id_environment,status_id_status,type_id_type,model_id_model,osver_id_osver,location_id_location,project_id_project,sof_id_sof) VALUES ('{{ hostname }}','{{ cpu }}','{{ memory }}','{{ email }}','{{ id_environment.stdout }}','{{ id_status.stdout }}','{{ id_type.stdout }}','{{ id_model.stdout }}','{{ id_osver.stdout }}','{{ id_datacenter.stdout }}','{{ id_project.stdout }}','{{ id_sof.stdout }}')"
+  when: existing.stdout == "0"
+  delegate_to: localhost
+  no_log: True
+
+
+# ----------------------------------
+# Add server to text file on localhost for legacy
+
+- name: Add server to /etc/rhel on localhost
+  lineinfile:
+    dest: /etc/rhel
+    state: present
+    line: "{{ hostname }}"
+  delegate_to: localhost
+  become: yes
+  become_user: root

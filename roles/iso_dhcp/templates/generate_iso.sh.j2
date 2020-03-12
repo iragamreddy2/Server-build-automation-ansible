@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd /data/bootimages/rhel7/{{ hostname }}
+mkisofs -o /{{ datacenter }}_iso/{{ hostname }}.iso -b isolinux/isolinux.bin -c isolinux/boot.cat --no-emul-boot --boot-load-size 4 --boot-info-table -J -R -V RHEL-7.2 .

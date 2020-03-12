@@ -1,0 +1,233 @@
+lang en_US
+keyboard us
+timezone America/Chicago --isUtc
+rootpw  --iscrypted
+##platform x86, AMD64, or Intel EM64T
+reboot
+text
+url --url=http://ip/pulp/repos/org/Library/content/dist/rhel/server/7/7Server/x86_64/kickstart
+bootloader --location=mbr --append="rhgb quiet crashkernel=auto net.ifnames=0 biosdevname=0"
+zerombr
+clearpart --all --initlabel --drives=sda
+#autopart
+# Disk partitioning information
+part /boot --fstype="xfs" --ondisk=sda --size=512
+part pv.635 --fstype="lvmpv" --ondisk=sda --size=62674
+volgroup rhel --pesize=4096 pv.635
+logvol /var/log/audit  --fstype="xfs" --size=4096 --name=var_log_audit --vgname=rhel
+logvol /tmp  --fstype="xfs" --size=4096 --name=tmp --vgname=rhel
+logvol swap  --fstype="swap" --size=4096 --name=swap --vgname=rhel
+logvol /var  --fstype="xfs" --size=8192 --name=var --vgname=rhel
+logvol /home  --fstype="xfs" --size=4096 --name=home --vgname=rhel
+logvol /var/log  --fstype="xfs" --size=4096 --name=var_log --vgname=rhel
+logvol /opt  --fstype="xfs" --size=8192 --name=opt --vgname=rhel
+logvol /  --fstype="xfs" --size=16384 --name=root --vgname=rhel
+# Network information
+network --bootproto=dhcp --hostname={{ hostname }}
+auth --passalgo=sha512 --useshadow
+selinux --permissive
+firewall --disabled
+skipx
+firstboot --disable
+
+%post
+
+
+#########################################################################
+# Local User Accounts
+
+# Create staff group
+
+
+# Add root to wheel
+#cp /etc/group /root/
+#sed -i 's/wheel:x:10:/wheel:x:10:root/g' /etc/group
+/usr/sbin/usermod -a -G wheel root
+
+# SSH keys for root
+mkdir -p /root/.ssh
+chmod 0700 /root/.ssh
+cat << 'EOF' > /root/.ssh/authorized_keys
+
+EOF
+chmod 0600 /root/.ssh/authorized_keys
+
+# BPS Scan User and Keys
+
+cat << 'EOF' > /home/bpsscan/.ssh/authorized_keys
+
+EOF
+chmod 700 /home/bpsscan/.ssh
+chmod 600 /home/bpsscan/.ssh/authorized_keys
+chown -R bpsscan:users /home/bpsscan
+passwd -l bpsscan
+
+
+########################################################################
+# Sudo
+
+#echo "%wheel   ALL=(ALL) ALL" >> /etc/sudoers
+echo "bpsscan ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+echo "%doss ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+echo "awx ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+echo 'Cmnd_Alias UG_MGT = /usr/bin/passwd [A-z]*, !/usr/bin/passwd root, /usr/sbin/useradd, /usr/sbin/groupadd, /usr/bin/chage, /usr/sbin/userdel, /usr/sbin/usermod, /usr/sbin/groupdel, /usr/sbin/groupmod, /usr/sbin/adflush' >> /etc/sudoers
+echo '%secbu ALL=(root) UG_MGT' >> /etc/sudoers
+echo 'Cmnd_Alias DISCOVERY = /sbin/dmidecode, /usr/bin/fdisk –l, /usr/bin/dmsetup table, /usr/bin/dmsetup ls, /usr/bin/multipath -ll' >> /etc/sudoers
+echo 'servicenowdisco ALL=(root) NOPASSWD:DISCOVERY'  >> /etc/sudoers
+
+########################################################################
+# Ansible
+groupadd -g 5994 awx
+useradd -u 5994 -g awx -c "Ansible" -m -d /home/awx -s /bin/bash awx
+chage -I -1 -m 0 -M 99999 -E -1 awx
+usermod -L awx
+chmod 700 /home/awx
+mkdir -p /home/awx/.ssh
+chown awx:awx /home/awx/.ssh
+chmod 0700 /home/awx/.ssh
+cat <<EOF > /home/awx/.ssh/authorized_keys
+
+EOF
+chown awx:awx /home/awx/.ssh/authorized_keys
+chmod 0600 /home/awx/.ssh/authorized_keys
+
+
+########################################################################
+# Disable Unnecessary Services
+
+systemctl stop smartd
+systemctl disable smartd
+
+# NTP will not start if chronyd is enabled
+systemctl stop chronyd
+systemctl disable chronyd
+
+
+########################################################################
+# Firstboot
+
+cat << 'EOF' > /usr/local/sbin/firstboot.sh
+#!/bin/bash
+#
+if [ -f /root/firstboot ]; then
+  #TYPE=$(hostname -s | cut -c13,14)
+  #DC=$(hostname -s | cut -c1,2,3 | tr "[a-z]" "[A-Z]")
+
+  # Initialize AIDE
+  echo "Initializing AIDE" | tee /dev/console
+  /sbin/aide --init | tee /dev/console
+  /bin/mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz | tee /dev/console
+
+  # Register with Satellite
+  echo "Registering with Satellite Server" | tee /dev/console
+  /usr/bin/wget http://ip/pub/katello-ca-consumer-latest.noarch.rpm | tee /dev/console
+  /usr/bin/yum localinstall katello-ca-consumer-latest.noarch.rpm -y | tee /dev/console
+  /usr/bin/subscription-manager register --org="" --activationkey="RHEL 7 {{ datacenter }} Virtual" | tee /dev/console
+  /usr/bin/subscription-manager attach --auto | tee /dev/console
+  /usr/bin/subscription-manager repos --enable=rhel-7-server-satellite-tools-6.1-rpms | tee /dev/console
+  /usr/bin/subscription-manager repos --enable=rhel-7-server-optional-rpms | tee /dev/console
+  /usr/bin/subscription-manager repos --enable=rhel-7-server-extras-rpms | tee /dev/console
+  /usr/bin/yum install katello-agent -y | tee /dev/console
+  /usr/bin/yum update -y | tee /dev/console
+
+  # Install additional software
+  echo "Installing redhat-lsb" | tee /dev/console
+  /usr/bin/yum install redhat-lsb -y | tee /dev/console
+
+  echo "Installing htop" | tee /dev/console
+  /usr/bin/yum install http:///software/htop/htop-2.1.0-1.el7.x86_64.rpm -y | tee /dev/console
+
+  # Initiate Provisioning Callback for NTP
+  echo "Installing and Configuring NTP" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/1037/callback/ --insecure
+
+  # Initiate Provisioning Callback for rsyslog
+  echo "Installing and Configuring rsyslog" | tee /dev/console
+  curl 'https://tower:443/api/v1/job_templates/245/callback/' -H 'Content-Type: application/json' --data-binary '{"host_config_key":"","extra_vars":{"datacenter":"{{ datacenter }}"}}' --insecure
+
+  # Initiate Provisioning Callback for Centrify
+  echo "Installing and Configuring Centrify" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/242/callback/ --insecure
+
+  # Initiate Provision Callback for Monitoring
+  echo "Installing Patrol" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/573/callback/ --insecure
+  echo "Installing Zabbix" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/583/callback/ --insecure
+
+  # Initiate Provision Callback for SCS
+  echo "Configure and RHEL server for System Configuration Snapshot (SCS) data collection" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/263/callback/ --insecure
+
+  # Initiate Provisioning Callback to deploy Admin keys
+  echo "Deploying Admin Keys" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/527/callback/ --insecure
+
+  # Initiate Provisioning Callback to deploy CarbonBlack
+  echo "Deploying CarbonBlack" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v2/job_templates/1276/callback/  --insecure
+
+  # Initiate Provisioning Callback to deploy Splunk Forwarder
+  echo "Deploying Splunk Forwarder" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/642/callback/ --insecure
+
+  sleep 120
+
+  # Initiate Provisioning Callback for Hardening and Nessus Hardening and Vulnerability Scan
+  echo "Initiating Nessus Hardening and Vulnerability Scan" | tee /dev/console
+  curl --data "host_config_key=" https://tower:443/api/v1/job_templates/116/callback/ --insecure
+  echo "Validate the Nessus hardening and vulnerability scans completed and reboot." | tee /dev/console
+
+  # Eject the Boot ISO
+  echo "Ejecting CD-ROM"  | tee /dev/console
+  /bin/eject cdrom
+
+  # Remove the firstboot file so this script does not run at next boot
+  /usr/bin/rm /root/firstboot
+
+  # Remove this script
+  /usr/bin/rm /usr/local/sbin/firstboot.sh
+
+  # Disable and remove firstboot.service
+  /usr/bin/systemctl disable firstboot.service
+  /usr/bin/rm /etc/systemd/system/firstboot.service
+  /usr/bin/systemctl daemon-reload
+  /usr/bin/systemctl reset-failed
+
+fi
+
+
+########################################################################
+# Disable consistent network device naming in RHEL7
+ln -s /dev/null /etc/udev/rules.d/80-net-name-slot.rules
+grubby --update-kernel=ALL --args=net.ifnames=0
+EOF
+
+
+chmod +x /usr/local/sbin/firstboot.sh
+touch /root/firstboot
+
+cat << 'EOF' > /etc/systemd/system/firstboot.service
+[Unit]
+Description=First Boot Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/firstboot.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl enable firstboot.service
+
+%end
+%packages
+@base
+open-vm-tools
+aide
+sendmail
+-postfix
+%end

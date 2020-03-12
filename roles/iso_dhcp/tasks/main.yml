@@ -1,0 +1,33 @@
+---
+- name: Update isolinux.cfg
+  delegate_to: localhost
+  copy:
+    src: isolinux.cfg
+    dest: /data/bootimages/rhel7/{{ hostname }}/isolinux/isolinux.cfg
+  become: yes
+  become_user: root
+
+- name: Copy ISO generator script
+  template:
+    src: generate_iso.sh.j2
+    dest: /data/bootimages/rhel7/{{ hostname }}/generate_iso.sh
+    mode: 0700
+    owner: root
+    group: root
+  delegate_to: localhost
+  become: yes
+  become_user: root
+
+- name: Generate the ISO
+  delegate_to: localhost
+  command: /data/bootimages/rhel7/{{ hostname }}/generate_iso.sh
+  become: yes
+  become_user: root
+
+- name: Remove temporary ISO directory
+  file:
+    path: /data/bootimages/rhel7/{{ hostname }}
+    state: absent
+  delegate_to: localhost
+  become: yes
+  become_user: root

@@ -1,0 +1,9 @@
+---
+- name: Send an email notification
+  mail:
+    to: '{{ email }}'
+    subject: 'VM Deployment - {{ hostname }}'
+    body: '{{ hostname }} has been successfully deployed.  You should be able to login via ssh.'
+    from: (Ansible Tower)
+    headers: 'xyz@abc.com'
+  delegate_to: localhost

@@ -1,0 +1,42 @@
+---
+- name: Eject CD-ROM
+  shell: /bin/eject cdrom
+  delegate_to: "{{ hostname }}"
+  become: true
+
+- name: Reconfigure CD-ROM
+  vsphere_guest:
+    state: reconfigured
+    validate_certs: no
+    vcenter_hostname: '{{ vc_hostname }}'
+    username: '{{ vc_username }}'
+    password: '{{ vc_password }}'
+    guest: '{{ hostname }}'
+    #state: powered_on
+    vm_extra_config:
+      vcpu.hotadd: yes
+      mem.hotadd:  yes
+      notes: Deployed via Ansible Tower
+      folder: Linux
+    vm_disk:
+      disk1:
+        size_gb: 64
+        type: thin
+        datastore: '{{ ds }}'
+    vm_nic:
+      nic1:
+        type: vmxnet3
+        network: '{{ network }}'
+        network_type: dvs
+    vm_hardware:
+      memory_mb:  '{{ memory }}'
+      num_cpus: '{{ cpu }}'
+      osid: rhel7_64Guest
+      scsi: paravirtual
+      vm_cdrom:
+        type: "client"
+        iso_path: "None"
+    esxi:
+      datacenter: '{{ datacenter }}'
+      hostname: '{{ esxi_hostname }}'
+  ignore_errors: True
